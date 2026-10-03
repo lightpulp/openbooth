@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pillow>=10.1
+pyyaml
+opencv-python

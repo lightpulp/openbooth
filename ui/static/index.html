@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Photobooth</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <video id="video" autoplay playsinline muted></video>
+  <img id="mjpeg" alt="">
+  <div id="flash"></div>
+
+  <section id="idle" class="screen active">
+    <h1 id="title"></h1>
+    <button id="start" disabled>Start</button>
+  </section>
+
+  <section id="shoot" class="screen">
+    <div id="shotlabel"></div>
+    <div id="count"></div>
+    <div id="thumbs"></div>
+  </section>
+
+  <section id="printing" class="screen solid">
+    <h2>Printing your photos…</h2>
+    <div class="spinner"></div>
+  </section>
+
+  <section id="thanks" class="screen solid">
+    <h1 id="thanksText"></h1>
+    <p>Please collect your photos!</p>
+    <a id="pdfLink" target="_blank" hidden>Open PDF preview</a>
+  </section>
+
+  <section id="error" class="screen solid">
+    <h2>Oops, something went wrong</h2>
+    <p id="errMsg"></p>
+    <button id="retry">Try again</button>
+  </section>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
