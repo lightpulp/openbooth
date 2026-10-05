@@ -10,7 +10,10 @@ Requires Python 3.10+.
 python -m venv venv
 venv\Scripts\activate          # Mac/Linux: source venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload
+
+
+
+uvicorn main:app --reload # Main run command
 ```
 
 Open **http://localhost:8000** (must be `localhost`) and allow the camera.

@@ -1,6 +1,6 @@
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const SCREENS = ["idle", "shoot", "printing", "thanks", "error"];
+const SCREENS = ["idle", "shoot", "review", "confirm", "printing", "thanks", "error"];
 let cfg = null, cameraReady = false, busy = false;
 
 function show(name) { SCREENS.forEach((s) => $(s).classList.toggle("active", s === name)); }
@@ -79,26 +79,62 @@ async function capturePhoto(sid, i) {
 }
 
 // ---------------- FLOW ----------------
+// Resolves with the id of whichever button is clicked first.
+function waitClick(...ids) {
+  return new Promise((resolve) => {
+    const undo = [];
+    ids.forEach((id) => {
+      const el = $(id);
+      const h = () => { undo.forEach((f) => f()); resolve(id); };
+      el.addEventListener("click", h);
+      undo.push(() => el.removeEventListener("click", h));
+    });
+  });
+}
+
+async function countdown() {
+  for (let s = cfg.countdown_seconds; s > 0; s--) { $("count").textContent = s; await sleep(1000); }
+  $("count").textContent = "";
+  $("flash").classList.add("on"); setTimeout(() => $("flash").classList.remove("on"), 80);
+}
+
 async function runSession() {
   if (busy || !cameraReady) return;
   busy = true; $("start").disabled = true;
   try {
     const { session_id: sid } = await api("/session", { method: "POST" });
-    $("thumbs").innerHTML = ""; show("shoot");
+    $("thumbs").innerHTML = "";
+    const urls = [];
 
     for (let i = 1; i <= cfg.photos; i++) {
-      $("shotlabel").textContent = `Photo ${i} of ${cfg.photos}`;
-      for (let s = cfg.countdown_seconds; s > 0; s--) { $("count").textContent = s; await sleep(1000); }
-      $("count").textContent = "";
-      $("flash").classList.add("on"); setTimeout(() => $("flash").classList.remove("on"), 80);
-      await withRetry(() => capturePhoto(sid, i));
-      const t = new Image(); t.src = `/camera/photo/${sid}/${i}?t=${Date.now()}`;
-      $("thumbs").appendChild(t);
-      await sleep(700);
+      while (true) {                                   // loops again only on "Retake"
+        $("shotlabel").textContent = `Photo ${i} of ${cfg.photos}`;
+        show("shoot");
+        await countdown();
+        await withRetry(() => capturePhoto(sid, i)); // same slot -> a retake replaces this photo
+        const url = `/camera/photo/${sid}/${i}?t=${Date.now()}`;
+        $("reviewImg").src = url;
+        $("next").textContent = i === cfg.photos ? "Done" : "Next photo";
+        show("review");
+        if ((await waitClick("retake", "next")) === "next") {
+          urls[i - 1] = url;
+          const t = new Image(); t.src = url; $("thumbs").appendChild(t);
+          break;
+        }
+      }
     }
 
+    $("grid").innerHTML = urls.map((u) => `<img src="${u}">`).join("");
+    show("confirm");
+    const wantPrint = (await waitClick("yes", "no")) === "yes";
+
+    $("printMsg").textContent = wantPrint ? "Printing your photos… this takes about a minute" : "Saving your photos…";
     show("printing");
-    const res = await api(`/printing/print/${sid}`, { method: "POST" });
+    const res = await api(`/printing/finish/${sid}?print_it=${wantPrint}`, { method: "POST" });
+
+    $("thanksSub").textContent = res.printed ? "Your photos are printing. Please wait nearby!"
+      : wantPrint ? "Test mode: saved as a PDF (printer is off)."
+      : "Thanks! Ask the staff if you'd like a digital copy.";
     const link = $("pdfLink");
     link.hidden = cfg.printer_mode !== "pdf" || !res.pdf_url;
     if (!link.hidden) link.href = res.pdf_url;

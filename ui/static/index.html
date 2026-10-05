@@ -22,14 +22,26 @@
     <div id="thumbs"></div>
   </section>
 
+  <section id="review" class="screen solid">
+    <h2>How does this one look?</h2>
+    <img id="reviewImg" alt="">
+    <div class="row"><button id="retake" class="secondary">Retake</button><button id="next">Next photo</button></div>
+  </section>
+
+  <section id="confirm" class="screen solid">
+    <h2>Print your photos?</h2>
+    <div id="grid"></div>
+    <div class="row"><button id="yes">Yes, print</button><button id="no" class="secondary">No thanks</button></div>
+  </section>
+
   <section id="printing" class="screen solid">
-    <h2>Printing your photos…</h2>
+    <h2 id="printMsg">Printing your photos…</h2>
     <div class="spinner"></div>
   </section>
 
   <section id="thanks" class="screen solid">
     <h1 id="thanksText"></h1>
-    <p>Please collect your photos!</p>
+    <p id="thanksSub"></p>
     <a id="pdfLink" target="_blank" hidden>Open PDF preview</a>
   </section>
 
