@@ -1,6 +1,6 @@
 event_text: "Happy Teachers' Day"
 event_date: auto            # "auto" = today's date, or e.g. "October 5, 2026"
-countdown_seconds: 10       # countdown before EACH photo
+countdown_seconds: 2       # countdown before EACH photo
 
 camera:
   # browser = the web page grabs frames (laptop cam, phone/DSLR in "webcam" mode)
@@ -15,5 +15,6 @@ camera:
   index: 0                  # 0 = laptop cam, 1/2... = external webcam-mode camera
 
 printer:
-  mode: pdf                 # pdf for now; add "epson" later (see printing/routes.py)
-  copies: 1                 # sheets per session (each sheet = 2 strips)
+  mode: epson                  # was: pdf
+  name: "EPSON L3250 Series"   # must match Windows exactly (see Fix 2)
+  copies: 1
