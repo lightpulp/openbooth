@@ -1,26 +1,167 @@
+/* Fonts (SIL Open Font License): Pixelify Sans, Geist. Self-hosted so the booth works offline. */
+@font-face { font-family: "Pixelify Sans"; src: url("fonts/pixelify-sans.woff2") format("woff2");
+  font-weight: 400 700; font-display: swap; }
+@font-face { font-family: "Geist"; src: url("fonts/geist.woff2") format("woff2");
+  font-weight: 100 900; font-display: swap; }
+
+:root {
+  --px: 4px;                      /* one "pixel" of the pixel-art UI */
+  --pad: clamp(16px, 4vw, 48px);
+  --paper: #F4EFE3;
+  --ink: #23201C;                 /* 14.1:1 on paper */
+  --muted: #6A6357;               /*  5.2:1 on paper */
+  --red: #C7302B;                 /* the one action color: primary buttons, countdown, progress */
+  --red-deep: #7A1C18;
+  --cream: #FFF8EE;               /*  5.1:1 on red */
+  --stage: #1B1916;               /* behind the camera feed */
+  --dot: rgb(35 32 28 / .09);
+  --focus: var(--red);
+  --pixel: "Pixelify Sans", ui-monospace, monospace;
+  --sans: "Geist", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --paper: #1B1916; --ink: #F2ECDF; --muted: #A39B8D; --dot: rgb(242 236 223 / .07); --focus: #EF6A5B; }
+}
+@media (prefers-contrast: more) { :root { --muted: var(--ink); } }
+
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: #000; color: #fff;
-  font-family: system-ui, sans-serif; overflow: hidden; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body { background: var(--stage); color: var(--ink); font: 500 clamp(1.125rem, 1.5vw, 1.375rem)/1.45 var(--sans);
+  -webkit-font-smoothing: antialiased; user-select: none; -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; }
+
 #video, #mjpeg { position: fixed; inset: 0; width: 100%; height: 100%;
   object-fit: cover; transform: scaleX(-1); }   /* mirrored preview only; saved photo is NOT mirrored */
 #mjpeg { display: none; }
-.screen { position: fixed; inset: 0; display: none; flex-direction: column;
-  align-items: center; justify-content: center; text-align: center; padding: 24px; gap: 20px; }
-.screen.active { display: flex; }
-.screen.solid { background: #14213d; }
-h1 { font-size: clamp(2rem, 6vw, 4rem); margin: 0; text-shadow: 0 2px 12px #000; }
-button { font-size: 2rem; padding: 18px 56px; border: 0; border-radius: 999px;
-  background: #fca311; color: #000; font-weight: 700; cursor: pointer; }
-button:disabled { opacity: .4; cursor: default; }
-#shoot { justify-content: space-between; }
-#shotlabel { font-size: 2rem; font-weight: 700; text-shadow: 0 2px 8px #000; }
-#count { font-size: clamp(8rem, 30vw, 18rem); font-weight: 800; line-height: 1; text-shadow: 0 4px 24px #000; }
-#thumbs { display: flex; gap: 10px; height: 90px; }
-#thumbs img { height: 100%; border-radius: 6px; border: 2px solid #fff; }
 #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .4s; z-index: 5; }
 #flash.on { opacity: 1; transition: none; }
-.spinner { width: 64px; height: 64px; border: 6px solid #ffffff44; border-top-color: #fca311;
-  border-radius: 50%; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-#errMsg { max-width: 600px; font-size: 1.2rem; }
-a { color: #fca311; }
+
+/* ---------- type ---------- */
+h1, h2 { font-family: var(--pixel); font-weight: 700; line-height: 1.05; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2.25rem, 4.4vw, 4rem); }
+h2 { font-size: clamp(1.875rem, 3.2vw, 2.875rem); }
+p { margin: 0; max-width: 40ch; text-wrap: pretty; }
+.muted { color: var(--muted); }
+/* small labels use Geist: the pixel face's digits blur together at this size */
+.eyebrow, .chip { font: 700 1rem/1 var(--sans); text-transform: uppercase; letter-spacing: .12em;
+  font-variant-numeric: tabular-nums; }
+.eyebrow { color: var(--muted); }
+a { color: var(--ink); font-weight: 600; text-underline-offset: 4px; }
+
+/* ---------- pixel primitives ---------- */
+/* 4 one-pixel bands instead of a border: the missing corner pixels give the stepped pixel-art corner */
+.px, .btn { --line: var(--ink);
+  --ring: 0 calc(-1 * var(--px)) 0 0 var(--line), 0 var(--px) 0 0 var(--line),
+          calc(-1 * var(--px)) 0 0 0 var(--line), var(--px) 0 0 0 var(--line);
+  margin: var(--px); }
+.px { box-shadow: var(--ring); }
+
+.btn { --bevel: rgb(35 32 28 / .12);
+  display: inline-flex; align-items: center; justify-content: center; gap: 14px;
+  min-height: 72px; min-width: 12rem; padding: 0 36px; border: 0; border-radius: 0; cursor: pointer;
+  font: 600 clamp(1.375rem, 2vw, 1.75rem)/1 var(--pixel); text-transform: uppercase; letter-spacing: .05em;
+  color: var(--ink); background: var(--paper);
+  box-shadow: var(--ring), inset 0 calc(-1 * var(--px)) 0 0 var(--bevel), 0 calc(2 * var(--px)) 0 0 var(--line); }
+.btn--primary { --bevel: var(--red-deep); color: var(--cream); background: var(--red); }
+.btn:active:not(:disabled) { transform: translateY(var(--px));
+  box-shadow: var(--ring), inset 0 var(--px) 0 0 var(--bevel); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn:focus-visible { outline: var(--px) solid var(--focus); outline-offset: calc(3 * var(--px)); }
+@media (hover: hover) { .btn:hover:not(:disabled) { filter: brightness(1.06); } }
+.arrow { width: 12px; height: 21px; fill: currentColor; }
+
+/* the buddy: the dragon mascot as pixel art, drawn by app.js from 24x24 maps (widths are multiples of 24) */
+.buddy { position: relative; width: 240px; flex: none; }
+.buddy svg { display: block; width: 100%; height: auto; }
+.buddy svg + svg { position: absolute; inset: 0; opacity: 0; }
+.buddy .r { fill: #D7262E; } .buddy .s { fill: #9C1621; } .buddy .y { fill: #F4C431; } .buddy .h { fill: #D9A51E; }
+.buddy .w { fill: #FFFDF8; } .buddy .g { fill: #D9D3CB; } .buddy .k { fill: #23201C; } .buddy .m { fill: #5E0F17; }
+.buddy .p { fill: #F28C8C; } .buddy .b { fill: #8FD0F5; } .buddy .o { fill: #2A1215; }
+.buddy--blink svg + svg { animation: blink 4.2s steps(1) infinite; }
+.buddy--work svg { animation: bob .5s steps(2) infinite alternate; }
+.buddy--hop svg { animation: bob .3s steps(2) 6 alternate; }
+@keyframes blink { 0%, 93%, 100% { opacity: 0; } 94%, 97% { opacity: 1; } }
+@keyframes bob { to { transform: translateY(calc(-3 * var(--px))); } }
+
+/* ---------- screens ---------- */
+.screen { position: fixed; inset: 0; display: none; gap: 24px;
+  padding: var(--pad) max(var(--pad), calc((100vw - 1400px) / 2)); }
+.screen.active { display: grid; }
+.screen.solid { background: var(--paper) radial-gradient(var(--dot) 1.5px, transparent 1.6px) 0 0 / 24px 24px; }
+.screen.active > * { animation: rise .24s steps(3) both; }
+.screen.active > :nth-child(2) { animation-delay: 60ms; }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+
+.side { display: grid; gap: 20px; justify-items: start; align-content: center; }
+.actions { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 12px; }
+
+/* idle: dock along the bottom, buddy standing on its top edge */
+#idle { align-content: end; }
+.dock { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  gap: 20px 40px; padding: 28px 32px; background: var(--paper); }
+.dock .buddy { position: absolute; left: 28px; bottom: calc(100% + var(--px)); width: 144px; }
+.dock__text { display: grid; gap: 8px; }
+
+/* shoot */
+#shoot { grid-template-rows: auto 1fr; justify-items: center; }
+.chip { padding: 14px 20px; background: var(--paper); }
+/* pixel digits from app.js: cream, ink outline, red block shadow. Readable over any background */
+#count { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+  filter: drop-shadow(-6px 0 #23201C) drop-shadow(6px 0 #23201C)
+  drop-shadow(0 -6px #23201C) drop-shadow(0 6px #23201C) drop-shadow(12px 12px #C7302B); }
+#count svg { display: block; height: clamp(8rem, 30vh, 17rem); width: auto; max-width: calc(100vw - 2 * var(--pad) - 24px); }
+#count .w { fill: #FFF8EE; }
+#count.pop { animation: pop .3s steps(3) both; }
+@keyframes pop { from { transform: scale(1.3); } }
+.film { list-style: none; margin: 0; padding: 0; display: flex; align-items: start; gap: 16px;
+  align-self: end; }
+.film li { --line: #F4EFE3; position: relative; display: grid; place-items: center; width: clamp(72px, 9vw, 132px);
+  aspect-ratio: 3 / 2; background: rgb(27 25 22 / .6); color: #F4EFE3; font: 700 1.375rem/1 var(--sans); }
+.film li::before { content: attr(data-n); }
+.film li.now { --line: #C7302B; }
+.film img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+/* review + confirm: the photos left, the decision right */
+.split { grid-template-columns: minmax(0, 1fr) minmax(16rem, 28rem); align-items: center; gap: 56px; }
+.photo { justify-self: end; display: block; max-width: calc(100% - 2 * var(--px));
+  max-height: calc(100dvh - 2 * var(--pad) - 2 * var(--px)); }
+.strip { --h: calc((100dvh - 2 * var(--pad) - 60px) / 4);   /* 4 photos stacked, like the print */
+  justify-self: end; display: grid; gap: 12px; padding: 12px; background: var(--cream); }
+.strip img { display: block; height: var(--h); aspect-ratio: 3 / 2; object-fit: cover; }
+
+/* printing / thanks / error: buddy left, words right */
+.moment { grid-template-columns: auto minmax(0, 34rem); justify-content: center; align-items: center; gap: 56px; }
+.march { width: min(100%, 22rem); height: 32px; margin-top: 12px;
+  background: repeating-linear-gradient(90deg, var(--red) 0 16px, transparent 16px 28px) var(--paper);
+  box-shadow: var(--ring), inset 0 0 0 6px var(--paper); animation: march .6s steps(4) infinite; }
+@keyframes march { to { background-position: 28px 0; } }
+#done { position: relative; }
+#done::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 6px;
+  background: var(--cream); opacity: .75; transform-origin: left; }
+#thanks.active #done::after { animation: drain 8s steps(8) forwards; }   /* 8 s = the wait in app.js */
+@keyframes drain { to { transform: scaleX(0); } }
+
+/* ---------- small / portrait screens: one column ---------- */
+@media (max-width: 767px), (max-aspect-ratio: 4/5) {
+  .split, .moment { grid-template-columns: minmax(0, 1fr); align-content: start; justify-content: stretch;
+    gap: 32px; overflow-y: auto; }
+  .photo { justify-self: start; max-height: 55dvh; }
+  .strip { justify-self: start; grid-template-columns: 1fr 1fr; }
+  .strip img { width: 100%; height: auto; }
+  .moment .buddy { width: 120px; }
+  .dock { grid-template-columns: minmax(0, 1fr); }
+  .dock .buddy { width: 96px; }
+  .actions .btn, .dock .btn { flex: 1 1 12rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important; }
+  #thanks.active #done::after { animation-duration: 8s !important; }   /* the drain is information, keep it */
+  #flash.on { opacity: .5; }
+}
+
+/* Windows high contrast drops box-shadows, so give controls a real border */
+@media (forced-colors: active) {
+  .px, .btn { border: 3px solid CanvasText; }
+}

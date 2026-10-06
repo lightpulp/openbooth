@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
   <title>Photobooth</title>
+  <link rel="preload" href="/static/fonts/pixelify-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -11,44 +13,83 @@
   <img id="mjpeg" alt="">
   <div id="flash"></div>
 
+  <!-- live preview + bottom dock -->
   <section id="idle" class="screen active">
-    <h1 id="title"></h1>
-    <button id="start" disabled>Start</button>
+    <div class="dock px">
+      <div class="buddy buddy--blink" data-face="idle"></div>
+      <div class="dock__text">
+        <h1 id="title"></h1>
+        <p id="howto" class="muted">Starting the camera…</p>
+      </div>
+      <button id="start" class="btn btn--primary" data-primary disabled>
+        Start <svg class="arrow" viewBox="0 0 4 7" aria-hidden="true"><path d="M0 0h1v1h1v1h1v1h1v1h-1v1h-1v1h-1v1h-1z"/></svg>
+      </button>
+    </div>
   </section>
 
+  <!-- countdown sits near the top, under the webcam, so people look at the lens -->
   <section id="shoot" class="screen">
-    <div id="shotlabel"></div>
-    <div id="count"></div>
-    <div id="thumbs"></div>
+    <div id="shotlabel" class="chip px" aria-live="polite"></div>
+    <div id="count" aria-hidden="true"></div>
+    <ol id="thumbs" class="film" aria-label="Photos taken"></ol>
   </section>
 
-  <section id="review" class="screen solid">
-    <h2>How does this one look?</h2>
-    <img id="reviewImg" alt="">
-    <div class="row"><button id="retake" class="secondary">Retake</button><button id="next">Next photo</button></div>
+  <section id="review" class="screen solid split">
+    <img id="reviewImg" class="photo px" alt="The photo you just took">
+    <div class="side">
+      <p id="reviewLabel" class="eyebrow"></p>
+      <h2>How does this one look?</h2>
+      <div class="actions">
+        <button id="next" class="btn btn--primary" data-primary>Next photo</button>
+        <button id="retake" class="btn">Retake</button>
+      </div>
+    </div>
   </section>
 
-  <section id="confirm" class="screen solid">
-    <h2>Print your photos?</h2>
-    <div id="grid"></div>
-    <div class="row"><button id="yes">Yes, print</button><button id="no" class="secondary">No thanks</button></div>
+  <section id="confirm" class="screen solid split">
+    <div id="grid" class="strip px" aria-label="Your photos"></div>
+    <div class="side">
+      <p class="eyebrow">All photos taken</p>
+      <h2>Print your strip?</h2>
+      <p class="muted">You get two copies on one sheet. Cut it down the middle to share one.</p>
+      <div class="actions">
+        <button id="yes" class="btn btn--primary" data-primary>Yes, print</button>
+        <button id="no" class="btn">No thanks</button>
+      </div>
+    </div>
   </section>
 
-  <section id="printing" class="screen solid">
-    <h2 id="printMsg">Printing your photos…</h2>
-    <div class="spinner"></div>
+  <section id="printing" class="screen solid moment">
+    <div class="buddy buddy--work" data-face="idle"></div>
+    <div class="side">
+      <h2 id="printMsg" role="status">Printing your strip…</h2>
+      <p id="printSub" class="muted"></p>
+      <div class="march px" aria-hidden="true"></div>
+    </div>
   </section>
 
-  <section id="thanks" class="screen solid">
-    <h1 id="thanksText"></h1>
-    <p id="thanksSub"></p>
-    <a id="pdfLink" target="_blank" hidden>Open PDF preview</a>
+  <section id="thanks" class="screen solid moment">
+    <div class="buddy buddy--hop" data-face="happy"></div>
+    <div class="side">
+      <h1 id="thanksText"></h1>
+      <p id="thanksSub" class="muted"></p>
+      <a id="pdfLink" target="_blank" hidden>Open PDF preview</a>
+      <div class="actions">
+        <!-- the bar along this button's bottom edge drains while the booth waits to reset -->
+        <button id="done" class="btn btn--primary" data-primary>Done</button>
+      </div>
+    </div>
   </section>
 
-  <section id="error" class="screen solid">
-    <h2>Oops, something went wrong</h2>
-    <p id="errMsg"></p>
-    <button id="retry">Try again</button>
+  <section id="error" class="screen solid moment">
+    <div class="buddy" data-face="sad"></div>
+    <div class="side">
+      <h2>Something went wrong</h2>
+      <p id="errMsg" role="alert"></p>
+      <div class="actions">
+        <button id="retry" class="btn btn--primary" data-primary>Try again</button>
+      </div>
+    </div>
   </section>
 
   <script src="/static/app.js"></script>
