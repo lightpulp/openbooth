@@ -1,20 +1,20 @@
-event_text: "Happy Teachers' Day"
-event_date: auto            # "auto" = today's date, or e.g. "October 5, 2026"
-countdown_seconds: 2       # countdown before EACH photo
+  event_text: "Happy Teachers' Day"
+  event_date: auto            # "auto" = today's date, or e.g. "October 5, 2026"
+  countdown_seconds: 5       # countdown before EACH photo
 
-camera:
-  # browser = the web page grabs frames (laptop cam, phone/DSLR in "webcam" mode)
-  # opencv  = Python grabs frames and streams the preview to the page
-  mode: browser
-  # --- browser mode ---
-  # When the DSLR/phone shows up as a webcam, put part of its name here
-  # (e.g. "Canon EOS Webcam", "Nikon", "Iriun", "DroidCam").
-  # Empty = browser default camera (your laptop cam).
-  browser_device_hint: ""
-  # --- opencv mode ---
-  index: 0                  # 0 = laptop cam, 1/2... = external webcam-mode camera
+  camera:
+    # browser = the web page grabs frames (laptop cam, phone/DSLR in "webcam" mode)
+    # opencv  = Python grabs frames and streams the preview to the page
+    mode: browser
+    # --- browser mode ---
+    # When the DSLR/phone shows up as a webcam, put part of its name here
+    # (e.g. "Canon EOS Webcam", "Nikon", "Iriun", "DroidCam").
+    # Empty = browser default camera (your laptop cam).
+    browser_device_hint: ""
+    # --- opencv mode ---
+    index: 0                  # 0 = laptop cam, 1/2... = external webcam-mode camera
 
-printer:
-  mode: epson                  # was: pdf
-  name: "EPSON L3250 Series"   # must match Windows exactly (see Fix 2)
-  copies: 1
+  printer:
+    mode: epson                  # was: pdf
+    name: "EPSON L3250 Series"   # must match Windows exactly (see Fix 2)
+    copies: 1

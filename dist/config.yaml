@@ -1,0 +1,11 @@
+event_text: Happy Teachers' Day
+event_date: auto
+countdown_seconds: 2
+camera:
+  mode: browser
+  browser_device_hint: ''
+  index: 0
+printer:
+  mode: pdf
+  name: EPSON L3250 Series
+  copies: 1

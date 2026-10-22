@@ -1,4 +1,7 @@
 sessions/
 __pycache__/
+build_exe.bat
+/build
+/dist/sessions/
 *.pyc
 venv/
