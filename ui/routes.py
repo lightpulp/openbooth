@@ -1,12 +1,20 @@
+import hashlib
+import json
 from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi.responses import FileResponse
 
-from core import CONFIG, PHOTOS, new_session
+from core import CONFIG, frame_path, new_session, photo_count
 
 router = APIRouter()
 STATIC = Path(__file__).parent / "static"
+
+
+def _version():
+    """Changes whenever the settings or the frame change, so open pages know to reload."""
+    raw = json.dumps(CONFIG, sort_keys=True, default=str) + str(frame_path().stat().st_mtime_ns)
+    return hashlib.md5(raw.encode()).hexdigest()[:10]
 
 
 @router.get("/")
@@ -20,10 +28,11 @@ def get_config():
     return {
         "event_text": CONFIG.get("event_text", "Photobooth"),
         "countdown_seconds": int(CONFIG.get("countdown_seconds", 10)),
-        "photos": PHOTOS,
+        "photos": photo_count(),                       # = number of windows in the chosen frame
         "camera_mode": cam.get("mode", "browser"),
         "browser_device_hint": cam.get("browser_device_hint", ""),
         "printer_mode": CONFIG.get("printer", {}).get("mode", "pdf"),
+        "version": _version(),
     }
 
 

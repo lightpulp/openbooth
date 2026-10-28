@@ -1,8 +1,8 @@
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 
 from camera.opencv_cam import CameraError, OpenCVCamera
-from core import CONFIG, check_index, save_photo, session_dir
+from core import CONFIG, check_index, save_cameras, save_photo, session_dir
 
 router = APIRouter(prefix="/camera")
 _camera = None
@@ -54,3 +54,10 @@ def photo(sid: str, n: int):
     if not p.exists():
         raise HTTPException(404, "Photo not found")
     return FileResponse(p)
+
+
+# browser mode: the page reports which cameras it can see (shown in the GUI's camera list)
+@router.post("/devices")
+def devices(body: dict = Body(...)):
+    save_cameras(body.get("labels", []))
+    return {"ok": True}

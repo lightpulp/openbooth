@@ -1,5 +1,6 @@
 """Shared config + session helpers used by all three parts."""
 import io
+import json
 import re
 import uuid
 from datetime import datetime
@@ -12,7 +13,8 @@ from PIL import Image, UnidentifiedImageError
 ROOT = Path(__file__).parent
 SESSIONS_DIR = ROOT / "sessions"
 SESSIONS_DIR.mkdir(exist_ok=True)
-PHOTOS = 4
+FRAMES_DIR = ROOT / "frames"          # frame PNGs (the GUI uploads new ones here)
+FRAMES_DIR.mkdir(exist_ok=True)
 MAX_UPLOAD = 15 * 1024 * 1024
 _SID = re.compile(r"^\d{8}_[0-9a-f]{8}$")
 
@@ -51,8 +53,9 @@ def session_dir(sid: str) -> Path:
 
 
 def check_index(n: int) -> None:
-    if not 1 <= n <= PHOTOS:
-        raise HTTPException(400, f"Photo number must be 1-{PHOTOS}")
+    total = photo_count()
+    if not 1 <= n <= total:
+        raise HTTPException(400, f"Photo number must be 1-{total}")
 
 
 def _content_range(profile: Image.Image, length: int):
@@ -112,3 +115,39 @@ def save_photo(sid: str, n: int, data: bytes) -> Path:
     path = d / f"raw_{n}.jpg"
     img.save(path, quality=95)
     return path
+
+
+# ---- frame / layout (chosen in the GUI, stored under "layout:" in config.yaml) ----
+def frame_path() -> Path:
+    name = (CONFIG.get("layout") or {}).get("frame", "")
+    p = FRAMES_DIR / name if name else None
+    if p is None or not p.is_file():                  # fall back to the first PNG in frames/
+        pngs = sorted(FRAMES_DIR.glob("*.png"))
+        if not pngs:
+            raise HTTPException(500, f"No frame PNG found in {FRAMES_DIR}")
+        p = pngs[0]
+    return p
+
+
+def print_format() -> dict:
+    lay = CONFIG.get("layout") or {}
+    return {"frame": frame_path(), "paper": str(lay.get("paper", "A4")),
+            "orientation": str(lay.get("orientation", "portrait")), "strips": int(lay.get("strips", 2))}
+
+
+def photo_count() -> int:
+    """Photos per session = number of transparent windows in the chosen frame."""
+    from printing.composer import count_windows
+    try:
+        return count_windows(frame_path())
+    except ValueError as e:
+        raise HTTPException(500, str(e))
+
+
+def save_cameras(labels) -> None:
+    """The booth page reports the camera names the browser can see; the GUI lists them."""
+    names = [x[:120] for x in labels if isinstance(x, str) and x][:20]
+    try:
+        (ROOT / "cameras.json").write_text(json.dumps(names), encoding="utf-8")
+    except OSError:
+        pass

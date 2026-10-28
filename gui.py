@@ -5,8 +5,10 @@ and the ui/, camera/, and printing/ folders.
 
 Development: python gui.py
 Packaging: build this file with PyInstaller from the project root.
+Frames (PNG) live in the 'frames' folder beside gui.py / the EXE.
 """
 import importlib
+import json
 import os
 import shutil
 import subprocess
@@ -23,6 +25,8 @@ import yaml
 PORT = 8000
 URL = f"http://localhost:{PORT}"
 DEFAULT_PRINTER = "(default printer)"
+DEFAULT_CAMERA = "(browser default)"
+PAPERS = ("A4", "A5", "A6", "Letter", "4x6", "5x7")      # keep in sync with printing/composer.py
 FROZEN = bool(getattr(sys, "frozen", False))
 
 # Writable files live beside gui.py in development, or beside the EXE when frozen.
@@ -30,6 +34,8 @@ APP_DIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).re
 # PyInstaller's temporary extraction folder contains bundled read-only assets.
 BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", APP_DIR))
 CONFIG_PATH = APP_DIR / "config.yaml"
+FRAMES_DIR = APP_DIR / "frames"
+CAMERAS_PATH = APP_DIR / "cameras.json"      # written by the booth page: cameras the browser can see
 
 if not FROZEN:
     sys.path.insert(0, str(APP_DIR))
@@ -55,6 +61,23 @@ def save_cfg(cfg):
     with temp_path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
     os.replace(temp_path, CONFIG_PATH)
+
+
+def seed_frames():
+    """Make sure frames/ exists and has at least the bundled default frame."""
+    FRAMES_DIR.mkdir(parents=True, exist_ok=True)
+    if not any(FRAMES_DIR.glob("*.png")):
+        for src in (BUNDLE_DIR / "printing" / "frame.png", APP_DIR / "printing" / "frame.png"):
+            if src.exists():
+                shutil.copy2(src, FRAMES_DIR / "default.png")
+                break
+
+
+def read_cameras():
+    try:
+        return [str(x) for x in json.loads(CAMERAS_PATH.read_text(encoding="utf-8"))]
+    except Exception:
+        return []
 
 
 def list_printers():
@@ -86,6 +109,8 @@ def configure_core_paths(core):
     core.ROOT = APP_DIR
     core.SESSIONS_DIR = APP_DIR / "sessions"
     core.SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    core.FRAMES_DIR = FRAMES_DIR
+    FRAMES_DIR.mkdir(parents=True, exist_ok=True)
     # core.py loads CONFIG at import time; reload it from the persistent config path.
     core.CONFIG = core.load_config()
 
@@ -197,98 +222,104 @@ class App(tk.Tk):
             messagebox.showerror("Configuration error", str(exc))
             self.destroy()
             raise
-
+        seed_frames()
         self._build()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.after(300, self.restart)
+        self.after(3000, self.poll_cameras)
+
+    # ---------- layout helpers ----------
+    def _box(self, title, row):
+        box = ttk.LabelFrame(self, text=title)
+        box.grid(row=row, column=0, sticky="ew", padx=10, pady=4)
+        box.columnconfigure(1, weight=1)
+        return box
+
+    def _row(self, box, r, text, widget, *buttons):
+        ttk.Label(box, text=text).grid(row=r, column=0, sticky="w", padx=8, pady=3)
+        widget.grid(row=r, column=1, sticky="ew", padx=4)
+        for i, (label, command) in enumerate(buttons):
+            ttk.Button(box, text=label, command=command).grid(
+                row=r, column=2 + i, padx=(2, 8 if i == len(buttons) - 1 else 2)
+            )
 
     def _build(self):
-        printer_cfg = self.cfg.get("printer") or {}
-        self.mode = tk.StringVar(value=printer_cfg.get("mode", "pdf"))
-        self.printer = tk.StringVar(value=printer_cfg.get("name") or DEFAULT_PRINTER)
-        self.copies = tk.StringVar(value=str(printer_cfg.get("copies", 1)))
+        cam = self.cfg.get("camera") or {}
+        lay = self.cfg.get("layout") or {}
+        pr = self.cfg.get("printer") or {}
+        self.camera = tk.StringVar(value=cam.get("browser_device_hint") or DEFAULT_CAMERA)
+        self.frame = tk.StringVar(value=str(lay.get("frame", "default.png")))
+        self.paper = tk.StringVar(value=str(lay.get("paper", "A4")))
+        self.orient = tk.StringVar(value=str(lay.get("orientation", "portrait")))
+        self.strips = tk.StringVar(value=str(lay.get("strips", 2)))
+        self.mode = tk.StringVar(value=pr.get("mode", "pdf"))
+        self.printer = tk.StringVar(value=pr.get("name") or DEFAULT_PRINTER)
+        self.copies = tk.StringVar(value=str(pr.get("copies", 1)))
         self.countdown = tk.StringVar(value=str(self.cfg.get("countdown_seconds", 10)))
+        self.info = tk.StringVar()
         self.sessions_dir = APP_DIR / "sessions"
 
-        server_box = ttk.LabelFrame(self, text="Server")
-        server_box.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 4))
-        server_box.columnconfigure(0, weight=1)
-
-        self.status = tk.Label(server_box, text="Starting...", anchor="w", fg="orange")
-        self.status.grid(row=0, column=0, columnspan=3, sticky="w", padx=8, pady=(6, 2))
-
-        url_entry = ttk.Entry(server_box, width=36)
+        # --- server ---
+        box = self._box("Server", 0)
+        self.status = tk.Label(box, text="Starting...", anchor="w", fg="orange")
+        self.status.grid(row=0, column=0, columnspan=4, sticky="w", padx=8, pady=(6, 2))
+        url_entry = ttk.Entry(box, width=36)
         url_entry.insert(0, URL)
         url_entry.configure(state="readonly")
-        url_entry.grid(row=1, column=0, sticky="ew", padx=8, pady=4)
-        ttk.Button(server_box, text="Open", command=lambda: webbrowser.open(URL)).grid(
-            row=1, column=1, padx=2
-        )
-        ttk.Button(server_box, text="Copy", command=self.copy_url).grid(
-            row=1, column=2, padx=(2, 8)
-        )
-        ttk.Button(server_box, text="Refresh server", command=self.restart).grid(
-            row=2, column=0, columnspan=3, sticky="ew", padx=8, pady=(4, 8)
-        )
+        self._row(box, 1, "Address", url_entry,
+                  ("Open", lambda: webbrowser.open(URL)), ("Copy", self.copy_url))
+        ttk.Button(box, text="Refresh server", command=self.restart).grid(
+            row=2, column=0, columnspan=4, sticky="ew", padx=8, pady=(4, 8))
 
-        cfg_box = ttk.LabelFrame(self, text="Configuration")
-        cfg_box.grid(row=1, column=0, sticky="ew", padx=10, pady=4)
-        cfg_box.columnconfigure(1, weight=1)
+        # --- camera ---
+        box = self._box("Camera", 1)
+        self.camera_box = ttk.Combobox(box, textvariable=self.camera, state="readonly", width=34)
+        self._row(box, 0, "Camera", self.camera_box, ("Rescan", self.refresh_cameras))
+        tk.Label(box, fg="gray", anchor="w", justify="left", wraplength=440,
+                 text="Cameras appear here after the booth page has been opened once and the "
+                      "browser camera permission was allowed. The page switches to the chosen camera automatically."
+                 ).grid(row=1, column=0, columnspan=4, sticky="w", padx=8, pady=(0, 6))
 
-        ttk.Label(cfg_box, text="Print mode").grid(row=0, column=0, sticky="w", padx=8, pady=4)
-        ttk.Combobox(
-            cfg_box, textvariable=self.mode, values=("pdf", "epson"),
-            state="readonly", width=14
-        ).grid(row=0, column=1, sticky="w", padx=4)
+        # --- frame & layout ---
+        box = self._box("Frame & layout", 2)
+        self.frame_box = ttk.Combobox(box, textvariable=self.frame, state="readonly", width=34)
+        self.frame_box.bind("<<ComboboxSelected>>", lambda e: self.update_info())
+        self._row(box, 0, "Frame (PNG)", self.frame_box,
+                  ("Upload...", self.upload_frame), ("Folder", lambda: self.open_dir(FRAMES_DIR)))
+        tk.Label(box, textvariable=self.info, fg="gray", anchor="w", justify="left", wraplength=440
+                 ).grid(row=1, column=0, columnspan=4, sticky="w", padx=8)
+        self._row(box, 2, "Paper size", ttk.Combobox(box, textvariable=self.paper, values=PAPERS,
+                                                    state="readonly", width=14))
+        self._row(box, 3, "Orientation", ttk.Combobox(box, textvariable=self.orient,
+                                                     values=("portrait", "landscape"), state="readonly", width=14))
+        self._row(box, 4, "Strips per sheet", ttk.Spinbox(box, from_=1, to=8, textvariable=self.strips, width=6),
+                  ("Preview layout", self.preview))
 
-        ttk.Label(cfg_box, text="Printer").grid(row=1, column=0, sticky="w", padx=8, pady=4)
-        self.printer_box = ttk.Combobox(
-            cfg_box, textvariable=self.printer, state="readonly", width=32
-        )
-        self.printer_box.grid(row=1, column=1, sticky="ew", padx=4)
-        ttk.Button(cfg_box, text="Rescan", command=self.scan_printers).grid(
-            row=1, column=2, padx=(2, 8)
-        )
+        # --- printing + session ---
+        box = self._box("Printing & session", 3)
+        self._row(box, 0, "Print mode", ttk.Combobox(box, textvariable=self.mode, values=("pdf", "epson"),
+                                                    state="readonly", width=14))
+        self.printer_box = ttk.Combobox(box, textvariable=self.printer, state="readonly", width=34)
+        self._row(box, 1, "Printer", self.printer_box, ("Rescan", self.scan_printers))
+        self._row(box, 2, "Copies", ttk.Spinbox(box, from_=1, to=10, textvariable=self.copies, width=6))
+        self._row(box, 3, "Countdown (s)", ttk.Spinbox(box, from_=1, to=60, textvariable=self.countdown, width=6))
+        session_entry = ttk.Entry(box, width=36)
+        session_entry.insert(0, str(self.sessions_dir))
+        session_entry.configure(state="readonly")
+        self._row(box, 4, "Session folder", session_entry,
+                  ("Open folder", lambda: self.open_dir(self.sessions_dir)))
+        ttk.Button(box, text="Save && apply", command=self.apply).grid(
+            row=5, column=0, columnspan=4, sticky="ew", padx=8, pady=(4, 8))
 
-        ttk.Label(cfg_box, text="Copies").grid(row=2, column=0, sticky="w", padx=8, pady=4)
-        ttk.Spinbox(cfg_box, from_=1, to=10, textvariable=self.copies, width=6).grid(
-            row=2, column=1, sticky="w", padx=4
-        )
-
-        ttk.Label(cfg_box, text="Countdown (s)").grid(
-            row=3, column=0, sticky="w", padx=8, pady=4
-        )
-        ttk.Spinbox(cfg_box, from_=1, to=60, textvariable=self.countdown, width=6).grid(
-            row=3, column=1, sticky="w", padx=4
-        )
-
-        ttk.Label(cfg_box, text="Session folder").grid(
-            row=4, column=0, sticky="w", padx=8, pady=4
-        )
-        # Read-only path for the sessions directory used by core.py.
-        self.session_entry = ttk.Entry(cfg_box, width=36)
-        self.session_entry.insert(0, str(self.sessions_dir))
-        self.session_entry.configure(state="readonly")
-        self.session_entry.grid(row=4, column=1, sticky="ew", padx=4)
-        ttk.Button(cfg_box, text="Open folder", command=self.open_sessions).grid(
-            row=4, column=2, padx=(2, 8)
-        )
-
-        ttk.Button(cfg_box, text="Save && apply", command=self.apply).grid(
-            row=5, column=0, columnspan=3, sticky="ew", padx=8, pady=(4, 8)
-        )
-
-        details = (
-            f"Config: {CONFIG_PATH}\n"
-            "Photos are saved to the session folder shown above. "
-            "Changing this folder is not supported by the current core.py."
-        )
-        tk.Label(
-            self, text=details, fg="gray", anchor="w", justify="left", wraplength=480
-        ).grid(row=2, column=0, sticky="w", padx=10, pady=(2, 10))
+        tk.Label(self, fg="gray", anchor="w", justify="left", wraplength=480,
+                 text=f"Config: {CONFIG_PATH}\nFrames: {FRAMES_DIR}"
+                 ).grid(row=4, column=0, sticky="w", padx=10, pady=(2, 10))
 
         self.scan_printers()
+        self.refresh_cameras()
+        self.refresh_frames()
 
+    # ---------- small actions ----------
     def set_status(self, text, color):
         self.status.configure(text=text, fg=color)
 
@@ -296,13 +327,30 @@ class App(tk.Tk):
         self.clipboard_clear()
         self.clipboard_append(URL)
 
-    def open_sessions(self):
-        self.sessions_dir.mkdir(parents=True, exist_ok=True)
+    def open_dir(self, path):
+        Path(path).mkdir(parents=True, exist_ok=True)
         try:
-            open_path(self.sessions_dir)
+            open_path(path)
         except Exception as exc:
             messagebox.showerror("Open folder", str(exc))
 
+    def _composer(self):
+        return importlib.import_module("printing.composer")
+
+    # ---------- cameras ----------
+    def refresh_cameras(self):
+        values = [DEFAULT_CAMERA] + read_cameras()
+        current = self.camera.get()
+        if current not in values:
+            values.append(current)                  # keep a saved choice even if it's unplugged right now
+        if list(self.camera_box["values"]) != values:
+            self.camera_box["values"] = values
+
+    def poll_cameras(self):
+        self.refresh_cameras()
+        self.after(3000, self.poll_cameras)
+
+    # ---------- printers ----------
     def scan_printers(self):
         names = list_printers()
         current = self.printer.get()
@@ -310,26 +358,98 @@ class App(tk.Tk):
             names.append(current)
         self.printer_box["values"] = [DEFAULT_PRINTER] + sorted(set(names))
 
+    # ---------- frames ----------
+    def refresh_frames(self, select=None):
+        names = sorted(p.name for p in FRAMES_DIR.glob("*.png"))
+        self.frame_box["values"] = names
+        if select:
+            self.frame.set(select)
+        elif self.frame.get() not in names and names:
+            self.frame.set(names[0])
+        self.update_info()
+
+    def update_info(self):
+        try:
+            n = self._composer().count_windows(FRAMES_DIR / self.frame.get())
+            self.info.set(f"{n} photo window(s) found -> {n} photos per session")
+        except Exception as exc:
+            self.info.set(f"Frame problem: {exc}")
+
+    def upload_frame(self):
+        src = filedialog.askopenfilename(title="Choose a frame PNG", filetypes=[("PNG image", "*.png")])
+        if not src:
+            return
+        dest = FRAMES_DIR / Path(src).name
+        if dest.exists():
+            dest = FRAMES_DIR / f"{dest.stem}_{int(time.time())}.png"
+        shutil.copy2(src, dest)
+        try:
+            self._composer().count_windows(dest)
+        except Exception as exc:
+            dest.unlink(missing_ok=True)
+            messagebox.showerror(
+                "Frame not usable",
+                f"{exc}\n\nThe PNG needs fully TRANSPARENT photo windows (and one strip on the canvas).")
+            return
+        self.refresh_frames(select=dest.name)
+
+    def _fmt(self):
+        strips = int(self.strips.get())
+        if not 1 <= strips <= 8:
+            raise ValueError("Strips per sheet must be between 1 and 8.")
+        return {"frame": FRAMES_DIR / self.frame.get(), "paper": self.paper.get(),
+                "orientation": self.orient.get(), "strips": strips}
+
+    def preview(self):
+        from PIL import Image, ImageDraw
+        comp = self._composer()
+        try:
+            fmt = self._fmt()
+            colors = ["#8ecae6", "#ffb703", "#90be6d", "#f28482"]
+            photos = []
+            for i in range(comp.count_windows(fmt["frame"])):
+                im = Image.new("RGB", (1500, 1000), colors[i % 4])
+                ImageDraw.Draw(im).text((750, 500), str(i + 1), fill="white", font=comp._font(400), anchor="mm")
+                photos.append(im)
+            sheet = comp.build_sheet(photos, fmt)
+        except Exception as exc:
+            messagebox.showerror("Preview", str(exc))
+            return
+        sheet.thumbnail((900, 800))
+        tmp = APP_DIR / "preview.png"
+        sheet.save(tmp)
+        win = tk.Toplevel(self)
+        win.title(f"Preview: {fmt['paper']} {fmt['orientation']}, {fmt['strips']} strip(s)")
+        img = tk.PhotoImage(file=str(tmp))
+        label = tk.Label(win, image=img)
+        label.image = img
+        label.pack()
+
+    # ---------- save + restart ----------
     def apply(self):
         try:
-            copies = int(self.copies.get())
-            countdown = int(self.countdown.get())
+            copies, countdown, fmt = int(self.copies.get()), int(self.countdown.get()), self._fmt()
             if not 1 <= copies <= 10 or not 1 <= countdown <= 60:
-                raise ValueError
-        except ValueError:
-            messagebox.showerror(
-                "Invalid value",
-                "Copies must be 1–10 and countdown must be 1–60 seconds.",
-            )
+                raise ValueError("Copies must be 1-10 and countdown must be 1-60 seconds.")
+            self._composer().count_windows(fmt["frame"])
+        except Exception as exc:
+            messagebox.showerror("Invalid setting", str(exc))
             return
 
         printer_name = self.printer.get()
+        camera_name = self.camera.get()
         self.cfg["printer"] = {
             **(self.cfg.get("printer") or {}),
             "mode": self.mode.get(),
             "name": "" if printer_name == DEFAULT_PRINTER else printer_name,
             "copies": copies,
         }
+        self.cfg["camera"] = {
+            **(self.cfg.get("camera") or {}),
+            "browser_device_hint": "" if camera_name == DEFAULT_CAMERA else camera_name,
+        }
+        self.cfg["layout"] = {"frame": self.frame.get(), "paper": fmt["paper"],
+                              "orientation": fmt["orientation"], "strips": fmt["strips"]}
         self.cfg["countdown_seconds"] = countdown
 
         try:
@@ -337,7 +457,6 @@ class App(tk.Tk):
         except OSError as exc:
             messagebox.showerror("Configuration", f"Could not write config.yaml:\n{exc}")
             return
-
         self.restart()
 
     def restart(self):
@@ -348,7 +467,7 @@ class App(tk.Tk):
             self.set_status("Not running", "red")
             messagebox.showerror("Server", error)
         else:
-            self.set_status(f"Running at {URL} (refresh the browser tab)", "green")
+            self.set_status(f"Running at {URL} (open booth pages reload by themselves)", "green")
 
     def on_close(self):
         self.server.stop()

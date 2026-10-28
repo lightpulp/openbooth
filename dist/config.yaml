@@ -1,6 +1,6 @@
 event_text: Happy Teachers' Day
 event_date: auto
-countdown_seconds: 2
+countdown_seconds: 5
 camera:
   mode: browser
   browser_device_hint: ''
